@@ -26,7 +26,7 @@
 	var Reveal;
 
 	// The reveal.js version
-	var VERSION = '3.7.0';
+	var VERSION = '3.8.0';
 
 	var SLIDES_SELECTOR = '.slides section',
 		HORIZONTAL_SLIDES_SELECTOR = '.slides>section',
@@ -146,8 +146,8 @@
 			// 1.3    2.3
 			//
 			// If you're on slide 1.3 and navigate right, you will normally move
-			// from 1.3 -> 2.1. With "gridNavigation" enabled the same navigation
-			// takes you from 1.3 -> 2.3.
+			// from 1.3 -> 2.1. If "grid" is used, the same navigation takes you
+			// from 1.3 -> 2.3.
 			navigationMode: 'default',
 
 			// Randomizes the order of slides each time the presentation loads
@@ -179,6 +179,13 @@
 			// - true:   All media will autoplay, regardless of individual setting
 			// - false:  No media will autoplay, regardless of individual setting
 			autoPlayMedia: null,
+
+			// Global override for preloading lazy-loaded iframes
+			// - null:   Iframes with data-src AND data-preload will be loaded when within
+			//           the viewDistance, iframes with only data-src will be loaded when visible
+			// - true:   All iframes with data-src will be loaded when within the viewDistance
+			// - false:  All iframes with data-src will be loaded only when visible
+			preloadIframes: null,
 
 			// Controls automatic progression to the next slide
 			// - 0:      Auto-sliding only happens if the data-autoslide HTML attribute
@@ -367,20 +374,9 @@
 			threshold: 40
 		},
 
-		// Holds information about the keyboard shortcuts
-		keyboardShortcuts = {
-			'N  ,  SPACE':						'Next slide',
-			'P':								'Previous slide',
-			'&#8592;  ,  H':					'Navigate left',
-			'&#8594;  ,  L':					'Navigate right',
-			'&#8593;  ,  K':					'Navigate up',
-			'&#8595;  ,  J':					'Navigate down',
-			'Home  ,  &#8984;/CTRL &#8592;':	'First slide',
-			'End  ,  &#8984;/CTRL &#8594;':		'Last slide',
-			'B  ,  .':							'Pause',
-			'F':								'Fullscreen',
-			'ESC, O':							'Slide overview'
-		},
+		// A key:value map of shortcut keyboard keys and descriptions of
+		// the actions they trigger, generated in #configure()
+		keyboardShortcuts = {},
 
 		// Holds custom key code mappings
 		registeredKeyBindings = {};
@@ -1437,6 +1433,26 @@
 			dom.wrapper.removeAttribute( 'data-navigation-mode' );
 		}
 
+		// Define our contextual list of keyboard shortcuts
+		if( config.navigationMode === 'linear' ) {
+			keyboardShortcuts['&#8594;  ,  &#8595;  ,  SPACE  ,  N  ,  L  ,  J'] = 'Next slide';
+			keyboardShortcuts['&#8592;  ,  &#8593;  ,  P  ,  H  ,  K']           = 'Previous slide';
+		}
+		else {
+			keyboardShortcuts['N  ,  SPACE']   = 'Next slide';
+			keyboardShortcuts['P']             = 'Previous slide';
+			keyboardShortcuts['&#8592;  ,  H'] = 'Navigate left';
+			keyboardShortcuts['&#8594;  ,  L'] = 'Navigate right';
+			keyboardShortcuts['&#8593;  ,  K'] = 'Navigate up';
+			keyboardShortcuts['&#8595;  ,  J'] = 'Navigate down';
+		}
+
+		keyboardShortcuts['Home  ,  &#8984;/CTRL &#8592;'] = 'First slide';
+		keyboardShortcuts['End  ,  &#8984;/CTRL &#8594;']  = 'Last slide';
+		keyboardShortcuts['B  ,  .']                       = 'Pause';
+		keyboardShortcuts['F']                             = 'Fullscreen';
+		keyboardShortcuts['ESC, O']                        = 'Slide overview';
+
 		sync();
 
 	}
@@ -1584,6 +1600,29 @@
 		else {
 			console.warn( 'reveal.js: "'+ id +'" plugin has already been registered' );
 		}
+
+	}
+
+	/**
+	 * Checks if a specific plugin has been registered.
+	 *
+	 * @param {String} id Unique plugin identifier
+	 */
+	function hasPlugin( id ) {
+
+		return !!plugins[id];
+
+	}
+
+	/**
+	 * Returns the specific plugin instance, if a plugin
+	 * with the given ID has been registered.
+	 *
+	 * @param {String} id Unique plugin identifier
+	 */
+	function getPlugin( id ) {
+
+		return plugins[id];
 
 	}
 
@@ -3672,6 +3711,26 @@
 	}
 
 	/**
+	 * Should the given element be preloaded?
+	 * Decides based on local element attributes and global config.
+	 *
+	 * @param {HTMLElement} element
+	 */
+	function shouldPreload( element ) {
+
+		// Prefer an explicit global preload setting
+		var preload = config.preloadIframes;
+
+		// If no global setting is available, fall back on the element's
+		// own preload setting
+		if( typeof preload !== 'boolean' ) {
+			preload = element.hasAttribute( 'data-preload' );
+		}
+
+		return preload;
+	}
+
+	/**
 	 * Called when the given slide is within the configured view
 	 * distance. Shows the slide element and loads any content
 	 * that is set to load lazily (data-src).
@@ -3686,10 +3745,12 @@
 		slide.style.display = config.display;
 
 		// Media elements with data-src attributes
-		toArray( slide.querySelectorAll( 'img[data-src], video[data-src], audio[data-src]' ) ).forEach( function( element ) {
-			element.setAttribute( 'src', element.getAttribute( 'data-src' ) );
-			element.setAttribute( 'data-lazy-loaded', '' );
-			element.removeAttribute( 'data-src' );
+		toArray( slide.querySelectorAll( 'img[data-src], video[data-src], audio[data-src], iframe[data-src]' ) ).forEach( function( element ) {
+			if( element.tagName !== 'IFRAME' || shouldPreload( element ) ) {
+				element.setAttribute( 'src', element.getAttribute( 'data-src' ) );
+				element.setAttribute( 'data-lazy-loaded', '' );
+				element.removeAttribute( 'data-src' );
+			}
 		} );
 
 		// Media elements with <source> children
@@ -3807,7 +3868,7 @@
 		}
 
 		// Reset lazy-loaded media elements with src attributes
-		toArray( slide.querySelectorAll( 'video[data-lazy-loaded][src], audio[data-lazy-loaded][src]' ) ).forEach( function( element ) {
+		toArray( slide.querySelectorAll( 'video[data-lazy-loaded][src], audio[data-lazy-loaded][src], iframe[data-lazy-loaded][src]' ) ).forEach( function( element ) {
 			element.setAttribute( 'data-src', element.getAttribute( 'src' ) );
 			element.removeAttribute( 'src' );
 		} );
@@ -4197,7 +4258,7 @@
 
 		}
 
-		return pastCount / ( totalCount - 1 );
+		return Math.min( pastCount / ( totalCount - 1 ), 1 );
 
 	}
 
@@ -4290,11 +4351,21 @@
 			writeURLTimeout = setTimeout( writeURL, delay );
 		}
 		else if( currentSlide ) {
+			// If we're configured to push to history OR the history
+			// API is not avaialble.
 			if( config.history || !window.history ) {
 				window.location.hash = locationHash();
 			}
+			// If we're configured to reflect the current slide in the
+			// URL without pushing to history.
 			else if( config.hash ) {
-				window.history.replaceState(null, null, '#' + locationHash());
+				window.history.replaceState( null, null, '#' + locationHash() );
+			}
+			// If history and hash are both disabled, a hash may still
+			// be added to the URL by clicking on a href with a hash
+			// target. Counter this by always removing the hash.
+			else {
+				window.history.replaceState( null, null, window.location.pathname + window.location.search );
 			}
 		}
 
@@ -5932,14 +6003,16 @@
 			}
 		},
 
-		// Adds/remvoes a custom key binding
+		// Adds/removes a custom key binding
 		addKeyBinding: addKeyBinding,
 		removeKeyBinding: removeKeyBinding,
 
-		// Called by plugins to register themselves
+		// API for registering and retrieving plugins
 		registerPlugin: registerPlugin,
+		hasPlugin: hasPlugin,
+		getPlugin: getPlugin,
 
-		// Programatically triggers a keyboard event
+		// Programmatically triggers a keyboard event
 		triggerKey: function( keyCode ) {
 			onDocumentKeyDown( { keyCode: keyCode } );
 		},

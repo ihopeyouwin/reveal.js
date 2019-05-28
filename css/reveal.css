@@ -27,6 +27,29 @@ body {
 /*********************************************
  * VIEW FRAGMENTS
  *********************************************/
+#moz{
+  width: 50%;
+  height: 50%;
+}
+.inline{
+  display: inline;
+}
+.inline img{
+  width: 10%;
+  height: 10%;
+}
+.mytext{
+  text-align: left;
+}
+
+#MDN{
+  width: 17%;
+  height: 17%;
+}
+.manifes{
+  font-size: 20px;
+  text-align: left;
+}
 .reveal .slides section .fragment {
   opacity: 0;
   visibility: hidden;
@@ -1454,7 +1477,7 @@ body {
   vertical-align: top; }
 
 .reveal .hljs[data-line-numbers]:not([data-line-numbers=""]) tr:not(.highlight-line) {
-  opacity: 0.25; }
+  opacity: 0.4; }
 
 /*********************************************
  * ROLLING LINKS
